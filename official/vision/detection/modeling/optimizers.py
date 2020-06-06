@@ -21,7 +21,7 @@ from __future__ import print_function
 import functools
 
 import numpy as np
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 
 
 class OptimizerFactory(object):
@@ -30,15 +30,10 @@ class OptimizerFactory(object):
   def __init__(self, params):
     """Creates optimized based on the specified flags."""
     if params.type == 'momentum':
-      nesterov = False
-      try:
-        nesterov = params.nesterov
-      except AttributeError:
-        pass
       self._optimizer = functools.partial(
           tf.keras.optimizers.SGD,
           momentum=params.momentum,
-          nesterov=nesterov)
+          nesterov=params.nesterov)
     elif params.type == 'adam':
       self._optimizer = tf.keras.optimizers.Adam
     elif params.type == 'adadelta':

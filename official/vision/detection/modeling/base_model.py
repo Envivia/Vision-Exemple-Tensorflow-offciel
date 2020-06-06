@@ -21,7 +21,7 @@ from __future__ import print_function
 import abc
 import functools
 import re
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 from official.vision.detection.modeling import checkpoint_utils
 from official.vision.detection.modeling import learning_rates
 from official.vision.detection.modeling import optimizers
@@ -43,7 +43,8 @@ def _make_filter_trainable_variables_fn(frozen_variable_prefix):
     # the frozen variables' names.
     filtered_variables = [
         v for v in variables
-        if not re.match(frozen_variable_prefix, v.name)
+        if not frozen_variable_prefix or
+        not re.match(frozen_variable_prefix, v.name)
     ]
     return filtered_variables
 
@@ -66,7 +67,7 @@ class Model(object):
     # Optimization.
     self._optimizer_fn = optimizers.OptimizerFactory(params.train.optimizer)
     self._learning_rate = learning_rates.learning_rate_generator(
-        params.train.learning_rate)
+        params.train.total_steps, params.train.learning_rate)
 
     self._frozen_variable_prefix = params.train.frozen_variable_prefix
     self._regularization_var_regex = params.train.regularization_variable_regex

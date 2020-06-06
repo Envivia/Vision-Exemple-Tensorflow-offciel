@@ -98,24 +98,14 @@ class DocAttention(tf.keras.layers.Layer):
 class MultiChannelAttention(layers.MultiHeadAttention):
   """Multi-channel Attention layer."""
 
-  def __init__(self, num_heads, head_size, **kwargs):
-    super(MultiChannelAttention, self).__init__(num_heads, head_size, **kwargs)
+  def build(self, input_shape):
+    super(MultiChannelAttention, self).build(input_shape)
     self._masked_softmax = layers.MaskedSoftmax(mask_expansion_axes=[2])
 
-  def compute_output_shape(self, input_shape):
-    if len(input_shape) != 4:
-      raise ValueError("Layer %s must have 4 input tensors." % self.name)
-    from_tensor_shape = tf.TensorShape(input_shape[0])
-    batch = from_tensor_shape[0]
-    from_tensor_length = from_tensor_shape[1]
-    return tf.TensorShape(
-        (batch, from_tensor_length, self._num_heads, self._head_size))
-
-  def call(self, inputs):
+  def call(self, inputs, attention_mask=None):
     from_tensor = inputs[0]
     to_tensor = inputs[1]
-    attention_mask = inputs[2]
-    doc_attention_probs = inputs[3]
+    doc_attention_probs = inputs[2]
 
     # Scalar dimensions referenced here:
     #   B = batch size (number of stories)
@@ -137,7 +127,7 @@ class MultiChannelAttention(layers.MultiHeadAttention):
     # attention scores.
     attention_scores = tf.einsum("BATNH,BFNH->BANFT", key_tensor, query_tensor)
     attention_scores = tf.multiply(attention_scores,
-                                   1.0 / math.sqrt(float(self._head_size)))
+                                   1.0 / math.sqrt(float(self._key_size)))
 
     # Normalize the attention scores to probabilities.
     # `attention_probs` = [B, A, N, F, T]
@@ -145,9 +135,12 @@ class MultiChannelAttention(layers.MultiHeadAttention):
 
     # This is actually dropping out entire tokens to attend to, which might
     # seem a bit unusual, but is taken from the original Transformer paper.
-    attention_probs = self._dropout(attention_probs)
+    attention_probs = self._dropout_layer(attention_probs)
 
     # `context_layer` = [B, F, N, H]
     context_layer = tf.einsum("BANFT,BATNH->BAFNH", attention_probs,
                               value_tensor)
-    return tf.einsum("BNFA,BAFNH->BFNH", doc_attention_probs, context_layer)
+    attention_output = tf.einsum("BNFA,BAFNH->BFNH", doc_attention_probs,
+                                 context_layer)
+    attention_output = self._output_dense(attention_output)
+    return attention_output
